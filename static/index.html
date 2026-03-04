@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Confluence AI Asszisztens</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0d0f14;
+    --surface:   #141720;
+    --border:    #1e2330;
+    --accent:    #0052cc;
+    --accent2:   #00b8d9;
+    --text:      #c9d1e0;
+    --text-dim:  #5a6478;
+    --text-head: #e8edf7;
+    --green:     #36b37e;
+    --red:       #ff5630;
+    --yellow:    #ffab00;
+    --radius:    8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'IBM Plex Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 28px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-icon {
+    width: 32px; height: 32px;
+    background: var(--accent);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+
+  .logo-text {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-head);
+    letter-spacing: -0.3px;
+  }
+
+  .logo-text span { color: var(--accent2); }
+
+  .status-bar {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+  }
+
+  .status-dot {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--text-dim);
+  }
+
+  .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: background 0.3s;
+  }
+  .dot.ok  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .dot.err { background: var(--red);   box-shadow: 0 0 6px var(--red); }
+
+  /* ── Layout ── */
+  .layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    height: calc(100vh - 65px);
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 260px;
+    min-width: 260px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 20px 16px;
+    gap: 20px;
+    overflow-y: auto;
+  }
+
+  .sidebar-label {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    font-family: 'IBM Plex Mono', monospace;
+    margin-bottom: 8px;
+  }
+
+  .space-select {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 9px 12px;
+    border-radius: var(--radius);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .space-select:focus { border-color: var(--accent); }
+
+  .hint-box {
+    background: rgba(0, 82, 204, 0.08);
+    border: 1px solid rgba(0, 82, 204, 0.2);
+    border-radius: var(--radius);
+    padding: 12px;
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  .hint-box strong { color: var(--accent2); display: block; margin-bottom: 4px; font-size: 11px; letter-spacing: 0.5px; }
+
+  .example-questions { display: flex; flex-direction: column; gap: 6px; }
+
+  .example-btn {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    font-size: 12px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s;
+    line-height: 1.4;
+  }
+  .example-btn:hover {
+    border-color: var(--accent2);
+    color: var(--accent2);
+    background: rgba(0, 184, 217, 0.05);
+  }
+
+  /* ── Chat area ── */
+  .chat-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 28px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    scroll-behavior: smooth;
+  }
+
+  .messages::-webkit-scrollbar { width: 4px; }
+  .messages::-webkit-scrollbar-track { background: transparent; }
+  .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Empty state */
+  .empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--text-dim);
+    text-align: center;
+    padding: 40px;
+  }
+
+  .empty-icon { font-size: 48px; opacity: 0.4; }
+  .empty-title { font-size: 20px; font-weight: 500; color: var(--text); }
+  .empty-sub { font-size: 14px; line-height: 1.6; max-width: 380px; }
+
+  /* Message bubbles */
+  .msg {
+    display: flex;
+    gap: 12px;
+    animation: fadeUp 0.25s ease both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .msg-avatar {
+    width: 32px; height: 32px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .msg.user .msg-avatar  { background: var(--accent); }
+  .msg.ai   .msg-avatar  { background: #1a2035; border: 1px solid var(--border); }
+
+  .msg-body { flex: 1; }
+
+  .msg-name {
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    letter-spacing: 0.5px;
+  }
+
+  .msg-text {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text-head);
+    white-space: pre-wrap;
+  }
+
+  .msg.user .msg-text {
+    background: rgba(0, 82, 204, 0.1);
+    border: 1px solid rgba(0, 82, 204, 0.2);
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    color: var(--text);
+  }
+
+  /* Sources */
+  .sources {
+    margin-top: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .source-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--accent2);
+    text-decoration: none;
+    transition: all 0.2s;
+  }
+  .source-chip:hover {
+    border-color: var(--accent2);
+    background: rgba(0, 184, 217, 0.05);
+  }
+
+  /* Typing indicator */
+  .typing { display: flex; align-items: center; gap: 4px; padding: 8px 0; }
+  .typing-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent2);
+    animation: pulse 1.2s infinite;
+  }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes pulse {
+    0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
+    40%           { transform: scale(1.1); opacity: 1; }
+  }
+
+  /* Error msg */
+  .msg-error {
+    color: var(--red);
+    font-size: 13px;
+    padding: 10px 14px;
+    background: rgba(255, 86, 48, 0.08);
+    border: 1px solid rgba(255, 86, 48, 0.2);
+    border-radius: var(--radius);
+  }
+
+  /* ── Input bar ── */
+  .input-bar {
+    padding: 16px 32px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+  }
+
+  .input-wrap {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    transition: border-color 0.2s;
+  }
+  .input-wrap:focus-within { border-color: var(--accent); }
+
+  textarea {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-head);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 14px;
+    resize: none;
+    outline: none;
+    min-height: 22px;
+    max-height: 140px;
+    line-height: 1.6;
+  }
+
+  textarea::placeholder { color: var(--text-dim); }
+
+  .send-btn {
+    background: var(--accent);
+    border: none;
+    color: white;
+    width: 36px; height: 36px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+    transition: all 0.2s;
+  }
+  .send-btn:hover:not(:disabled) { background: #0065ff; transform: scale(1.05); }
+  .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .input-hint {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 8px;
+    text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🔍</div>
+    <div class="logo-text">Confluence <span>AI</span></div>
+  </div>
+  <div class="status-bar">
+    <div class="status-dot">
+      <div class="dot" id="dot-confluence"></div>
+      <span>Confluence</span>
+    </div>
+    <div class="status-dot">
+      <div class="dot" id="dot-ollama"></div>
+      <span>Ollama</span>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div>
+      <div class="sidebar-label">Space</div>
+      <select class="space-select" id="spaceSelect">
+        <option value="">⏳ Betöltés...</option>
+      </select>
+    </div>
+
+    <div>
+      <div class="sidebar-label">Hogyan működik</div>
+      <div class="hint-box">
+        <strong>🧠 Embedding RAG</strong>
+        Szemantikus keresés – a kérdés jelentése alapján találja meg a releváns oldalakat, nem csak kulcsszavak alapján.
+      </div>
+
+      <div>
+        <div class="sidebar-label">Index kezelés</div>
+        <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;" id="indexStatus">⏳ Betöltés...</div>
+        <button class="example-btn" onclick="reindex()" id="reindexBtn" style="width:100%;text-align:center;color:var(--accent2);border-color:var(--accent2);">
+          🔄 Újraindexelés
+        </button>
+      </div>
+    </div>
+
+    <div>
+      <div class="sidebar-label">Példa kérdések</div>
+      <div class="example-questions" id="examples">
+        <button class="example-btn" onclick="useExample(this)">Hogyan kell VPN-t beállítani?</button>
+        <button class="example-btn" onclick="useExample(this)">Mi a jelszóváltoztatás folyamata?</button>
+        <button class="example-btn" onclick="useExample(this)">Hol találom az IT helpdesk elérhetőségét?</button>
+        <button class="example-btn" onclick="useExample(this)">Milyen szoftverek érhetők el a cégnél?</button>
+      </div>
+    </div>
+  </aside>
+
+  <div class="chat-area">
+    <div class="messages" id="messages">
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">🏢</div>
+        <div class="empty-title">Confluence tudásbázis</div>
+        <div class="empty-sub">Kérdezz bármit a belső dokumentációból. Az AI kizárólag a Confluence tartalmából válaszol.</div>
+      </div>
+    </div>
+
+    <div class="input-bar">
+      <div class="input-wrap">
+        <textarea
+          id="input"
+          placeholder="Kérdezz a dokumentációból..."
+          rows="1"
+          onkeydown="handleKey(event)"
+          oninput="autoResize(this)"
+        ></textarea>
+        <button class="send-btn" id="sendBtn" onclick="sendMessage()" title="Küldés">➤</button>
+      </div>
+      <div class="input-hint">Enter = küldés &nbsp;|&nbsp; Shift+Enter = új sor</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = "http://localhost:5000/api";
+let isLoading = false;
+
+// ── Health check ─────────────────────────────────────────────────────────────
+async function checkHealth() {
+  try {
+    const r = await fetch(`${API}/health`);
+    const d = await r.json();
+    document.getElementById("dot-confluence").className = "dot " + (d.confluence ? "ok" : "err");
+    document.getElementById("dot-ollama").className     = "dot " + (d.ollama     ? "ok" : "err");
+  } catch {
+    document.getElementById("dot-confluence").className = "dot err";
+    document.getElementById("dot-ollama").className     = "dot err";
+  }
+}
+
+// ── Space lista betöltése ─────────────────────────────────────────────────────
+async function loadSpaces() {
+  const sel = document.getElementById("spaceSelect");
+  try {
+    const r = await fetch(`${API}/spaces`);
+    const d = await r.json();
+    if (d.spaces && d.spaces.length) {
+      sel.innerHTML = '<option value="">— Összes space —</option>' +
+        d.spaces.map(s => `<option value="${s.key}">${s.name} (${s.key})</option>`).join("");
+    } else {
+      sel.innerHTML = '<option value="">— Nincs space adat —</option>';
+    }
+  } catch {
+    sel.innerHTML = '<option value="">— Kapcsolati hiba —</option>';
+  }
+}
+
+// ── Chat ──────────────────────────────────────────────────────────────────────
+function appendMessage(role, content, sources = []) {
+  const empty = document.getElementById("emptyState");
+  if (empty) empty.remove();
+
+  const msgs = document.getElementById("messages");
+  const div  = document.createElement("div");
+  div.className = `msg ${role}`;
+
+  const avatar = role === "user" ? "👤" : "🤖";
+  const name   = role === "user" ? "TE" : "CONFLUENCE AI";
+
+  let sourcesHtml = "";
+  if (sources.length) {
+    sourcesHtml = `<div class="sources">
+      ${sources.map(s => `<a class="source-chip" href="${s.url}" target="_blank">📄 ${s.title}</a>`).join("")}
+    </div>`;
+  }
+
+  div.innerHTML = `
+    <div class="msg-avatar">${avatar}</div>
+    <div class="msg-body">
+      <div class="msg-name">${name}</div>
+      <div class="msg-text">${escapeHtml(content)}</div>
+      ${sourcesHtml}
+    </div>`;
+
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+function appendTyping() {
+  const msgs = document.getElementById("messages");
+  const div  = document.createElement("div");
+  div.className = "msg ai";
+  div.id = "typing-indicator";
+  div.innerHTML = `
+    <div class="msg-avatar">🤖</div>
+    <div class="msg-body">
+      <div class="msg-name">CONFLUENCE AI</div>
+      <div class="typing">
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+      </div>
+    </div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function removeTyping() {
+  const el = document.getElementById("typing-indicator");
+  if (el) el.remove();
+}
+
+async function sendMessage() {
+  const input     = document.getElementById("input");
+  const question  = input.value.trim();
+  const spaceKey  = document.getElementById("spaceSelect").value;
+  if (!question || isLoading) return;
+
+  isLoading = true;
+  document.getElementById("sendBtn").disabled = true;
+  input.value = "";
+  autoResize(input);
+
+  appendMessage("user", question);
+  appendTyping();
+
+  try {
+    const r = await fetch(`${API}/ask`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, space_key: spaceKey })
+    });
+    const d = await r.json();
+    removeTyping();
+
+    if (d.error) {
+      const div = appendMessage("ai", "⚠️ " + d.error);
+      div.querySelector(".msg-text").className = "msg-text msg-error";
+    } else {
+      appendMessage("ai", d.answer, d.sources || []);
+    }
+  } catch (e) {
+    removeTyping();
+    appendMessage("ai", "⚠️ Nem sikerült kapcsolódni a szerverhez. Fut a backend? (python app.py)");
+  }
+
+  isLoading = false;
+  document.getElementById("sendBtn").disabled = false;
+  input.focus();
+}
+
+function handleKey(e) {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+function autoResize(el) {
+  el.style.height = "auto";
+  el.style.height = Math.min(el.scrollHeight, 140) + "px";
+}
+
+function useExample(btn) {
+  document.getElementById("input").value = btn.textContent;
+  document.getElementById("input").focus();
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+// ── Index status ─────────────────────────────────────────────────────────────
+async function loadIndexStatus() {
+  try {
+    const r = await fetch(`${API}/index/status`);
+    const d = await r.json();
+    document.getElementById("indexStatus").textContent =
+      d.ready ? `✅ ${d.indexed_pages} oldal indexelve` : "⚠️ Index üres – kattints az újraindexelésre!";
+  } catch {
+    document.getElementById("indexStatus").textContent = "❌ Nem elérhető";
+  }
+}
+
+async function reindex() {
+  const btn = document.getElementById("reindexBtn");
+  const spaceKey = document.getElementById("spaceSelect").value;
+  btn.textContent = "⏳ Indexelés folyamatban...";
+  btn.disabled = true;
+  try {
+    const r = await fetch(`${API}/index`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ space_key: spaceKey || null })
+    });
+    const d = await r.json();
+    if (d.success) {
+      btn.textContent = `✅ Kész! ${d.indexed} új oldal`;
+      await loadIndexStatus();
+    } else {
+      btn.textContent = "❌ Hiba történt";
+    }
+  } catch {
+    btn.textContent = "❌ Kapcsolati hiba";
+  }
+  setTimeout(() => { btn.textContent = "🔄 Újraindexelés"; btn.disabled = false; }, 3000);
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+checkHealth();
+setInterval(checkHealth, 30000);
+loadSpaces();
+loadIndexStatus();
+</script>
+</body>
+</html>
